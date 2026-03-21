@@ -8,11 +8,7 @@ import logging
 import os
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from dotenv import load_dotenv
-
 from jobs.check_alerts import check_alerts
-
-load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
