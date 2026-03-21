@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { alertsApi, type Alert } from "@/api/alerts";
 import AlertCard from "@/components/AlertCard";
 import { colors, spacing } from "@/theme";
@@ -20,17 +21,22 @@ function sortAlerts(alerts: Alert[]): Alert[] {
 }
 
 export default function AlertsScreen() {
+  const { highlightId } = useLocalSearchParams<{ highlightId?: string }>();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList<Alert>>(null);
+  const scrolledRef = useRef(false);
 
-  async function loadAlerts() {
+  async function loadAlerts(onLoaded?: (data: Alert[]) => void) {
     try {
       setError(null);
       const data = await alertsApi.list();
-      setAlerts(sortAlerts(data));
-    } catch (err: any) {
+      const sorted = sortAlerts(data);
+      setAlerts(sorted);
+      onLoaded?.(sorted);
+    } catch {
       setError("Failed to load alerts. Please try again.");
     }
   }
@@ -48,19 +54,33 @@ export default function AlertsScreen() {
   }
 
   async function handleDelete(id: number) {
-    // Optimistic update: remove immediately
     setAlerts((prev) => prev.filter((a) => a.id !== id));
     try {
       await alertsApi.delete(id);
     } catch {
-      // Revert on failure by reloading
       loadAlerts();
     }
   }
 
+  // Initial load
   useEffect(() => {
     initialLoad();
   }, []);
+
+  // When arriving via a notification tap, reload fresh data then scroll + highlight
+  useEffect(() => {
+    if (!highlightId) return;
+    scrolledRef.current = false;
+    const numId = Number(highlightId);
+    loadAlerts((loaded) => {
+      const idx = loaded.findIndex((a) => a.id === numId);
+      if (idx >= 0) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.3 });
+        }, 300);
+      }
+    });
+  }, [highlightId]);
 
   if (loading) {
     return (
@@ -87,7 +107,11 @@ export default function AlertsScreen() {
         data={alerts}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <AlertCard alert={item} onDelete={handleDelete} />
+          <AlertCard
+            alert={item}
+            onDelete={handleDelete}
+            highlighted={highlightId != null && item.id === Number(highlightId)}
+          />
         )}
         contentContainerStyle={[
           styles.list,

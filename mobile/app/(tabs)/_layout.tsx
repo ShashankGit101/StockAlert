@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
@@ -45,34 +45,56 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
   return tokenData.data;
 }
 
+function navigateToAlert(router: ReturnType<typeof useRouter>, alertId: number) {
+  router.navigate({
+    pathname: "/(tabs)/alerts",
+    params: { highlightId: String(alertId) },
+  });
+}
+
+function extractAlertId(response: Notifications.NotificationResponse): number | null {
+  const data = response.notification.request.content.data;
+  const id = data?.alert_id;
+  return id != null ? Number(id) : null;
+}
+
 export default function TabLayout() {
+  const router = useRouter();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
+    // Push token registration
     registerForPushNotificationsAsync()
       .then(async (pushToken) => {
         if (pushToken) {
           try {
             await authApi.updatePushToken(pushToken);
           } catch {
-            // Non-fatal: push token update failed silently
+            // Non-fatal
           }
         }
       })
-      .catch(() => {
-        // Non-fatal: push registration failed silently
-      });
+      .catch(() => {});
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (_notification) => {
-        // Notification received while app is foregrounded
+    // Cold-start: app was killed when notification was tapped
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        const alertId = extractAlertId(response);
+        if (alertId != null) navigateToAlert(router, alertId);
       }
+    });
+
+    // Foreground: show the alert banner (default handler above covers this)
+    notificationListener.current = Notifications.addNotificationReceivedListener(
+      (_notification) => {}
     );
 
+    // Background / foreground tap: user tapped the notification
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (_response) => {
-        // User tapped a notification
+      (response) => {
+        const alertId = extractAlertId(response);
+        if (alertId != null) navigateToAlert(router, alertId);
       }
     );
 

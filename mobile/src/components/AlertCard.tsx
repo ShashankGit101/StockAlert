@@ -1,10 +1,12 @@
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type { Alert } from "@/api/alerts";
 import { colors, spacing } from "@/theme";
 
 interface AlertCardProps {
   alert: Alert;
   onDelete?: (id: number) => void;
+  highlighted?: boolean;
 }
 
 function formatPrice(price: number): string {
@@ -16,7 +18,28 @@ function formatPrice(price: number): string {
   });
 }
 
-export default function AlertCard({ alert, onDelete }: AlertCardProps) {
+export default function AlertCard({ alert, onDelete, highlighted }: AlertCardProps) {
+  const highlightAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!highlighted) return;
+    // Flash in immediately, hold, then fade out
+    highlightAnim.setValue(1);
+    const timer = setTimeout(() => {
+      Animated.timing(highlightAnim, {
+        toValue: 0,
+        duration: 1200,
+        useNativeDriver: false,
+      }).start();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [highlighted]);
+
+  const animatedBorderColor = highlightAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["transparent", colors.primary],
+  });
+
   const isAbove = alert.direction === "above";
 
   const directionColor = isAbove ? colors.green : colors.red;
@@ -33,7 +56,7 @@ export default function AlertCard({ alert, onDelete }: AlertCardProps) {
   }
 
   return (
-    <View style={styles.card}>
+    <Animated.View style={[styles.card, { borderWidth: 2, borderColor: animatedBorderColor }]}>
       <View style={styles.left}>
         <Text style={styles.ticker}>{alert.ticker}</Text>
         <View style={styles.badges}>
@@ -61,7 +84,7 @@ export default function AlertCard({ alert, onDelete }: AlertCardProps) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
