@@ -13,3 +13,17 @@ apiClient.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+// On 401, clear the stored token so the routing guard redirects to login
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error?.response?.status === 401) {
+      await AsyncStorage.removeItem("access_token");
+      // Let the auth store know so the routing effect fires
+      const { useAuthStore } = await import("@/store/authStore");
+      useAuthStore.getState().clearToken();
+    }
+    return Promise.reject(error);
+  }
+);

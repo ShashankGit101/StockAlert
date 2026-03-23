@@ -47,7 +47,7 @@ export default function RegisterScreen() {
     try {
       const { access_token } = await authApi.register(email.trim(), password);
       await setToken(access_token);
-      router.replace("/(tabs)");
+      router.replace("/onboarding/notifications");
     } catch (err: any) {
       const message =
         err?.response?.data?.detail ?? "Registration failed. Please try again.";

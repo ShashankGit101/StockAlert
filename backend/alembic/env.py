@@ -13,6 +13,11 @@ from app.core.config import settings
 from app.core.database import Base
 import app.models.user  # noqa: F401
 import app.models.alert  # noqa: F401
+import app.models.stock  # noqa: F401
+import app.models.alert_state  # noqa: F401
+import app.models.alert_history  # noqa: F401
+import app.models.price_snapshot  # noqa: F401
+import app.models.trade_history  # noqa: F401
 
 config = context.config
 

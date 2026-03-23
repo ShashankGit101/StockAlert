@@ -16,25 +16,19 @@ Notifications.setNotificationHandler({
 });
 
 async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (!Device.isDevice) {
-    return null;
-  }
+  if (!Device.isDevice) return null;
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-
-  if (existingStatus !== "granted") {
+  const { status: existing } = await Notifications.getPermissionsAsync();
+  let final = existing;
+  if (existing !== "granted") {
     const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+    final = status;
   }
-
-  if (finalStatus !== "granted") {
-    return null;
-  }
+  if (final !== "granted") return null;
 
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
+      name: "StockAlert",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: colors.primary,
@@ -43,13 +37,6 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
 
   const tokenData = await Notifications.getExpoPushTokenAsync();
   return tokenData.data;
-}
-
-function navigateToAlert(router: ReturnType<typeof useRouter>, alertId: number) {
-  router.navigate({
-    pathname: "/(tabs)/alerts",
-    params: { highlightId: String(alertId) },
-  });
 }
 
 function extractAlertId(response: Notifications.NotificationResponse): number | null {
@@ -64,47 +51,35 @@ export default function TabLayout() {
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
-    // Push token registration
     registerForPushNotificationsAsync()
       .then(async (pushToken) => {
         if (pushToken) {
-          try {
-            await authApi.updatePushToken(pushToken);
-          } catch {
-            // Non-fatal
-          }
+          try { await authApi.updatePushToken(pushToken); } catch {}
         }
       })
       .catch(() => {});
 
-    // Cold-start: app was killed when notification was tapped
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (response) {
         const alertId = extractAlertId(response);
-        if (alertId != null) navigateToAlert(router, alertId);
+        if (alertId != null) {
+          router.navigate({ pathname: "/(tabs)/alerts", params: { highlightId: String(alertId) } });
+        }
       }
     });
 
-    // Foreground: show the alert banner (default handler above covers this)
-    notificationListener.current = Notifications.addNotificationReceivedListener(
-      (_notification) => {}
-    );
+    notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
 
-    // Background / foreground tap: user tapped the notification
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const alertId = extractAlertId(response);
-        if (alertId != null) navigateToAlert(router, alertId);
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const alertId = extractAlertId(response);
+      if (alertId != null) {
+        router.navigate({ pathname: "/(tabs)/alerts", params: { highlightId: String(alertId) } });
       }
-    );
+    });
 
     return () => {
-      if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
-      }
-      if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
-      }
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, []);
 
@@ -126,9 +101,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Watchlist",
+          title: "Portfolio",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="list-outline" color={color} size={size} />
+            <Ionicons name="bar-chart-outline" color={color} size={size} />
           ),
         }}
       />
@@ -142,20 +117,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="add"
         options={{
-          title: "Search",
+          title: "Add Stock",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search-outline" color={color} size={size} />
+            <Ionicons name="add-circle-outline" color={color} size={size} />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="settings"
         options={{
-          title: "Profile",
+          title: "Settings",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-outline" color={color} size={size} />
+            <Ionicons name="settings-outline" color={color} size={size} />
           ),
         }}
       />

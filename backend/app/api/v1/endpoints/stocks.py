@@ -8,21 +8,25 @@ from app.services.stock_service import StockServiceError, get_quote, search
 router = APIRouter()
 
 
-# ── Schemas ───────────────────────────────────────────────────────────────────
+# ── Schemas ────────────────────────────────────────────────────────────────────
 
 class QuoteResponse(BaseModel):
     ticker: str
     price: float
     change: float
     change_percent: float
+    currency: str
+    exchange: str
 
 
 class SearchResult(BaseModel):
     ticker: str
     name: str
+    exchange: str
+    currency: str
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/quote/{ticker}", response_model=QuoteResponse)
 async def get_stock_quote(
@@ -30,14 +34,16 @@ async def get_stock_quote(
     _: User = Depends(get_current_user),
 ):
     try:
-        quote = await get_quote(ticker)
+        q = await get_quote(ticker)
     except StockServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
     return QuoteResponse(
-        ticker=quote.ticker,
-        price=quote.price,
-        change=quote.change,
-        change_percent=quote.change_percent,
+        ticker=q.ticker,
+        price=q.price,
+        change=q.change,
+        change_percent=q.change_percent,
+        currency=q.currency,
+        exchange=q.exchange,
     )
 
 
@@ -50,4 +56,7 @@ async def search_stocks(
         results = await search(q)
     except StockServiceError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
-    return [SearchResult(ticker=r.ticker, name=r.name) for r in results]
+    return [
+        SearchResult(ticker=r.ticker, name=r.name, exchange=r.exchange, currency=r.currency)
+        for r in results
+    ]

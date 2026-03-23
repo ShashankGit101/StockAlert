@@ -1,68 +1,64 @@
-"""Stock data via Alpha Vantage REST API with a simple in-process TTL cache."""
+"""Stock data via yfinance — no API key required.
 
+All yfinance calls are synchronous so we run them in a thread-pool executor
+to avoid blocking the async event loop.
+"""
+
+import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import partial
 
-import httpx
+import yfinance as yf
 
-from app.core.config import settings
-
-_BASE = "https://www.alphavantage.co/query"
-
-# ── TTL cache ─────────────────────────────────────────────────────────────────
-# Keyed by (function, arg). Quotes are cached 60 s; search results 5 min.
+# ── TTL in-process cache ───────────────────────────────────────────────────────
 
 @dataclass
 class _Entry:
-    value: dict | list
+    value: object
     expires_at: float
 
 
-_cache: dict[tuple, _Entry] = {}
+_cache: dict[str, _Entry] = {}
 
 
-def _get(key: tuple):
-    entry = _cache.get(key)
-    if entry and time.monotonic() < entry.expires_at:
-        return entry.value
+def _cache_get(key: str):
+    e = _cache.get(key)
+    if e and time.monotonic() < e.expires_at:
+        return e.value
     return None
 
 
-def _set(key: tuple, value, ttl: float):
+def _cache_set(key: str, value, ttl: float):
     _cache[key] = _Entry(value=value, expires_at=time.monotonic() + ttl)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
 class StockServiceError(Exception):
-    """Raised for provider errors that should surface as HTTP errors."""
     def __init__(self, message: str, status_code: int = 502):
         super().__init__(message)
         self.status_code = status_code
 
 
-async def _get_json(params: dict) -> dict:
-    if not settings.ALPHA_VANTAGE_API_KEY:
-        raise StockServiceError("Stock data API key is not configured", status_code=503)
-    params["apikey"] = settings.ALPHA_VANTAGE_API_KEY
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            response = await client.get(_BASE, params=params)
-            response.raise_for_status()
-        except httpx.TimeoutException:
-            raise StockServiceError("Stock data provider timed out", status_code=504)
-        except httpx.HTTPStatusError as e:
-            raise StockServiceError(f"Stock data provider error: {e.response.status_code}")
-    data = response.json()
-    if "Information" in data:
-        # Alpha Vantage rate-limit message
-        raise StockServiceError("Stock data rate limit reached, please try again shortly", status_code=429)
-    if "Error Message" in data:
-        raise StockServiceError(data["Error Message"], status_code=404)
-    return data
+async def _in_thread(fn, *args):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, partial(fn, *args))
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
+def _exchange_label(symbol: str, yf_exchange: str) -> str:
+    if symbol.endswith(".NS") or yf_exchange in ("NSI", "NSE", "BSE"):
+        return "NSE"
+    if yf_exchange in ("NMS", "NGM", "NCM", "NAS"):
+        return "NASDAQ"
+    return "NYSE"
+
+
+def _currency_for_exchange(exchange: str) -> str:
+    return "INR" if exchange == "NSE" else "USD"
+
+
+# ── Public types ───────────────────────────────────────────────────────────────
 
 @dataclass
 class Quote:
@@ -70,51 +66,116 @@ class Quote:
     price: float
     change: float
     change_percent: float
-
-
-async def get_quote(ticker: str) -> Quote:
-    ticker = ticker.upper()
-    cache_key = ("GLOBAL_QUOTE", ticker)
-
-    cached = _get(cache_key)
-    if cached:
-        return Quote(**cached)
-
-    data = await _get_json({"function": "GLOBAL_QUOTE", "symbol": ticker})
-    gq = data.get("Global Quote", {})
-
-    if not gq or not gq.get("05. price"):
-        raise StockServiceError(f"No quote found for '{ticker}'", status_code=404)
-
-    price = float(gq["05. price"])
-    change = float(gq["09. change"])
-    change_pct_str = gq["10. change percent"].rstrip("%")
-    change_percent = float(change_pct_str)
-
-    result = {"ticker": ticker, "price": price, "change": change, "change_percent": change_percent}
-    _set(cache_key, result, ttl=60)
-    return Quote(**result)
+    currency: str
+    exchange: str
 
 
 @dataclass
 class SearchResult:
     ticker: str
     name: str
+    exchange: str
+    currency: str
+
+
+# ── Quote ──────────────────────────────────────────────────────────────────────
+
+def _fetch_quote(ticker: str) -> Quote:
+    t = yf.Ticker(ticker)
+    info = t.info
+
+    price = (
+        info.get("currentPrice")
+        or info.get("regularMarketPrice")
+        or info.get("previousClose")
+    )
+    if not price:
+        raise StockServiceError(f"No quote found for '{ticker}'", status_code=404)
+
+    prev = info.get("previousClose") or info.get("regularMarketPreviousClose") or price
+    change = round(price - prev, 4)
+    change_pct = round((change / prev) * 100, 4) if prev else 0.0
+
+    yf_exchange = info.get("exchange", "")
+    exchange = _exchange_label(ticker, yf_exchange)
+    currency = info.get("currency") or _currency_for_exchange(exchange)
+
+    return Quote(
+        ticker=ticker.upper(),
+        price=round(price, 4),
+        change=change,
+        change_percent=change_pct,
+        currency=currency,
+        exchange=exchange,
+    )
+
+
+async def get_quote(ticker: str) -> Quote:
+    ticker = ticker.upper()
+    key = f"quote:{ticker}"
+    cached = _cache_get(key)
+    if cached:
+        return cached
+
+    try:
+        result = await _in_thread(_fetch_quote, ticker)
+    except StockServiceError:
+        raise
+    except Exception as e:
+        raise StockServiceError(f"Failed to fetch quote for '{ticker}': {e}")
+
+    _cache_set(key, result, ttl=60)
+    return result
+
+
+# ── Search ─────────────────────────────────────────────────────────────────────
+
+def _fetch_search(query: str) -> list[SearchResult]:
+    results: list[SearchResult] = []
+    seen: set[str] = set()
+
+    # 1. yfinance Search API (covers US + international)
+    try:
+        s = yf.Search(query, max_results=8)
+        for q in (s.quotes or []):
+            symbol: str = q.get("symbol", "")
+            if not symbol or symbol in seen:
+                continue
+            name = q.get("longname") or q.get("shortname") or symbol
+            yf_exchange = q.get("exchange", "")
+            exchange = _exchange_label(symbol, yf_exchange)
+            currency = _currency_for_exchange(exchange)
+            results.append(SearchResult(ticker=symbol, name=name, exchange=exchange, currency=currency))
+            seen.add(symbol)
+    except Exception:
+        pass
+
+    # 2. Explicit NSE probe — try <QUERY>.NS directly
+    ns_sym = query.upper().split(".")[0] + ".NS"
+    if ns_sym not in seen:
+        try:
+            info = yf.Ticker(ns_sym).info
+            price = info.get("currentPrice") or info.get("regularMarketPrice")
+            if price:
+                name = info.get("longName") or info.get("shortName") or ns_sym
+                results.append(SearchResult(ticker=ns_sym, name=name, exchange="NSE", currency="INR"))
+                seen.add(ns_sym)
+        except Exception:
+            pass
+
+    return results
 
 
 async def search(query: str) -> list[SearchResult]:
-    cache_key = ("SYMBOL_SEARCH", query.lower())
-
-    cached = _get(cache_key)
+    key = f"search:{query.lower()}"
+    cached = _cache_get(key)
     if cached:
-        return [SearchResult(**r) for r in cached]
+        return cached
 
-    data = await _get_json({"function": "SYMBOL_SEARCH", "keywords": query})
-    matches = data.get("bestMatches", [])
+    try:
+        results = await _in_thread(_fetch_search, query)
+    except Exception as e:
+        raise StockServiceError(f"Search failed: {e}")
 
-    results = [
-        {"ticker": m["1. symbol"], "name": m["2. name"]}
-        for m in matches
-    ]
-    _set(cache_key, results, ttl=300)
-    return [SearchResult(**r) for r in results]
+    _cache_set(key, results, ttl=300)
+    return results
