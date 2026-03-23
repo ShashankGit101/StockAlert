@@ -1,10 +1,7 @@
-import asyncio
-import ssl
+import re
 from logging.config import fileConfig
 
-from sqlalchemy import pool
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -28,8 +25,13 @@ if config.config_file_name is not None:
 # Point autogenerate at our models
 target_metadata = Base.metadata
 
-# Inject the real DB URL from .env (overrides the blank value in alembic.ini)
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Build a synchronous psycopg2 URL from the asyncpg URL.
+# psycopg2 does NOT use prepared statements the same way, so it is safe
+# with PgBouncer transaction-mode pooling (no DuplicatePreparedStatementError).
+_raw = settings.DATABASE_URL
+# strip +asyncpg driver tag: postgresql+asyncpg:// → postgresql://
+_sync_url = re.sub(r"postgresql\+asyncpg://", "postgresql://", _raw)
+config.set_main_option("sqlalchemy.url", _sync_url)
 
 
 def run_migrations_offline() -> None:
@@ -44,30 +46,17 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    ssl_ctx = ssl.create_default_context()
-    ssl_ctx.check_hostname = False
-    ssl_ctx.verify_mode = ssl.CERT_NONE
-
-    connectable = async_engine_from_config(
+def run_migrations_online() -> None:
+    connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args={"ssl": ssl_ctx, "statement_cache_size": 0},
+        connect_args={"sslmode": "require"},
     )
-    async with connectable.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await connectable.dispose()
-
-
-def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
