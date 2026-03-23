@@ -12,102 +12,81 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { alertsApi } from "@/api/alerts";
+import { holdingsApi, type HoldingRecord } from "@/api/holdings";
 import { stocksApi } from "@/api/stocks";
 import StockCard from "@/components/StockCard";
 import { colors, mono, spacing } from "@/theme";
 import type { Holding } from "@/types/portfolio";
-import type { Exchange } from "@/types/portfolio";
 
 const LADDER_STEP_PP = 2;
 
 function buildHoldings(
-  alerts: Awaited<ReturnType<typeof alertsApi.list>>,
-  quotes: Map<string, Awaited<ReturnType<typeof stocksApi.quote>>>
+  records: HoldingRecord[],
+  quotes: Map<string, { price: number; change: number; change_percent: number; exchange: string }>,
+  alertMap: Map<string, { has_active: boolean; triggered: boolean; triggered_at?: string }>
 ): Holding[] {
-  // Group active alerts by ticker
-  const byTicker = new Map<string, typeof alerts>();
-  for (const a of alerts) {
-    if (a.status === "cancelled") continue;
-    const list = byTicker.get(a.ticker) ?? [];
-    list.push(a);
-    byTicker.set(a.ticker, list);
-  }
+  return records
+    .map((r) => {
+      const quote = quotes.get(r.ticker);
+      if (!quote) return null;
 
-  const holdings: Holding[] = [];
-  for (const [ticker, tickerAlerts] of byTicker.entries()) {
-    const quote = quotes.get(ticker);
-    if (!quote) continue;
+      const current_price = quote.price;
+      const total_cost = r.avg_cost * r.quantity;
+      const total_value = current_price * r.quantity;
+      const profit = total_value - total_cost;
+      const profit_pct = total_cost > 0 ? (profit / total_cost) * 100 : 0;
+      const ladder_rung = Math.floor(((current_price - r.avg_cost) / r.avg_cost) * 100 / LADDER_STEP_PP);
 
-    const active = tickerAlerts.find((a) => a.status === "active");
-    const triggered = tickerAlerts.find((a) => a.status === "triggered");
-    const ref = active ?? triggered ?? tickerAlerts[0];
+      const alertInfo = alertMap.get(r.ticker) ?? { has_active: false, triggered: false };
 
-    // Use target_price as proxy for avg_cost until buy_history endpoints exist
-    const avg_cost = ref.target_price;
-    const current_price = quote.price;
-    const daily_change = quote.change;
-    const daily_change_pct = quote.change_percent;
+      // Derive exchange from ticker or quote
+      const exchange = r.market === "NSE" ? "NSE" : (
+        quote.exchange === "NASDAQ" ? "NASDAQ" : "NYSE"
+      );
 
-    const total_cost = avg_cost;
-    const total_value = current_price;
-    const profit = current_price - avg_cost;
-    const profit_pct = ((current_price - avg_cost) / avg_cost) * 100;
-    const ladder_rung = Math.floor(profit_pct / LADDER_STEP_PP);
-
-    // Guess exchange from ticker name
-    const exchange: Exchange = ticker.includes(".NS") ? "NSE" : "NYSE";
-    const currency = exchange === "NSE" ? "INR" : "USD";
-
-    holdings.push({
-      ticker,
-      name: ticker, // backend search returns name; quote doesn't yet
-      exchange,
-      currency,
-      shares: 1,
-      avg_cost,
-      current_price,
-      daily_change,
-      daily_change_pct,
-      total_cost,
-      total_value,
-      profit,
-      profit_pct,
-      ladder_rung,
-      ladder_step_pp: LADDER_STEP_PP,
-      has_active_alert: !!active,
-      alert_triggered: !!triggered,
-      alert_triggered_at: triggered?.triggered_at,
-    });
-  }
-  return holdings;
+      return {
+        id: r.id,
+        ticker: r.ticker,
+        name: r.company_name,
+        exchange: exchange as Holding["exchange"],
+        currency: r.currency as Holding["currency"],
+        quantity: r.quantity,
+        original_cost: r.original_cost,
+        avg_cost: r.avg_cost,
+        purchase_date: r.purchase_date,
+        threshold_pct: r.threshold_pct,
+        threshold_profit_price: r.threshold_profit_price,
+        current_price,
+        daily_change: quote.change,
+        daily_change_pct: quote.change_percent,
+        total_cost,
+        total_value,
+        profit,
+        profit_pct,
+        ladder_rung,
+        ladder_step_pp: LADDER_STEP_PP,
+        has_active_alert: alertInfo.has_active,
+        alert_triggered: alertInfo.triggered,
+        alert_triggered_at: alertInfo.triggered_at,
+      } satisfies Holding;
+    })
+    .filter((h): h is Holding => h !== null);
 }
 
-interface SellModalProps {
-  holding: Holding;
-  onClose: () => void;
-  onDone: () => void;
-}
+// ── Modals ────────────────────────────────────────────────────────────────────
 
-function SellModal({ holding, onClose, onDone }: SellModalProps) {
+function SellModal({ holding, onClose, onDone }: { holding: Holding; onClose: () => void; onDone: () => void }) {
   const [shares, setShares] = useState("");
   const [price, setPrice] = useState(String(holding.current_price.toFixed(2)));
   const [fullSell, setFullSell] = useState(false);
-
-  function handleConfirm() {
-    // Placeholder — will call portfolioApi.sell when endpoint exists
-    onDone();
-  }
+  const sym = holding.currency === "INR" ? "₹" : "$";
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheet}>
           <Text style={styles.sheetTitle}>Sell {holding.ticker}</Text>
-          <Text style={styles.sheetSub}>Current: {holding.currency === "INR" ? "₹" : "$"}{holding.current_price.toFixed(2)}</Text>
+          <Text style={styles.sheetSub}>Current: {sym}{holding.current_price.toFixed(2)}</Text>
 
           <TouchableOpacity
             style={[styles.toggleRow, fullSell && styles.toggleRowActive]}
@@ -137,7 +116,7 @@ function SellModal({ holding, onClose, onDone }: SellModalProps) {
             onChangeText={setPrice}
           />
 
-          <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
+          <TouchableOpacity style={styles.confirmBtn} onPress={onDone}>
             <Text style={styles.confirmBtnText}>{fullSell ? "Close Position" : "Sell Shares"}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
@@ -149,37 +128,24 @@ function SellModal({ holding, onClose, onDone }: SellModalProps) {
   );
 }
 
-interface BuyMoreModalProps {
-  holding: Holding;
-  onClose: () => void;
-  onDone: () => void;
-}
-
-function BuyMoreModal({ holding, onClose, onDone }: BuyMoreModalProps) {
+function BuyMoreModal({ holding, onClose, onDone }: { holding: Holding; onClose: () => void; onDone: () => void }) {
   const [shares, setShares] = useState("");
   const [price, setPrice] = useState(String(holding.current_price.toFixed(2)));
-
-  function handleConfirm() {
-    onDone();
-  }
+  const sym = holding.currency === "INR" ? "₹" : "$";
 
   const newAvg = (() => {
     const s = parseFloat(shares);
     const p = parseFloat(price);
     if (!s || !p) return null;
-    const totalShares = holding.shares + s;
-    return (holding.shares * holding.avg_cost + s * p) / totalShares;
+    return (holding.quantity * holding.avg_cost + s * p) / (holding.quantity + s);
   })();
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.modalOverlay}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={styles.sheet}>
           <Text style={styles.sheetTitle}>Buy More {holding.ticker}</Text>
-          <Text style={styles.sheetSub}>Current avg cost: {holding.currency === "INR" ? "₹" : "$"}{holding.avg_cost.toFixed(2)}</Text>
+          <Text style={styles.sheetSub}>Current avg cost: {sym}{holding.avg_cost.toFixed(2)}</Text>
 
           <TextInput
             style={styles.input}
@@ -200,11 +166,11 @@ function BuyMoreModal({ holding, onClose, onDone }: BuyMoreModalProps) {
 
           {newAvg !== null && (
             <Text style={styles.newAvg}>
-              New avg cost: {holding.currency === "INR" ? "₹" : "$"}{newAvg.toFixed(2)}
+              New avg cost: {sym}{newAvg.toFixed(2)}
             </Text>
           )}
 
-          <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.green }]} onPress={handleConfirm}>
+          <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.green }]} onPress={onDone}>
             <Text style={styles.confirmBtnText}>Buy More</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
@@ -215,6 +181,8 @@ function BuyMoreModal({ holding, onClose, onDone }: BuyMoreModalProps) {
     </Modal>
   );
 }
+
+// ── Portfolio screen ──────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -227,12 +195,11 @@ export default function PortfolioScreen() {
   const load = useCallback(async () => {
     try {
       setError(null);
-      const alerts = await alertsApi.list();
-      const tickers = Array.from(new Set(
-        alerts.filter((a) => a.status !== "cancelled").map((a) => a.ticker)
-      ));
+      const records = await holdingsApi.list();
 
-      const quoteMap = new Map<string, Awaited<ReturnType<typeof stocksApi.quote>>>();
+      const tickers = Array.from(new Set(records.map((r) => r.ticker)));
+
+      const quoteMap = new Map<string, { price: number; change: number; change_percent: number; exchange: string }>();
       await Promise.allSettled(
         tickers.map(async (t) => {
           try {
@@ -242,7 +209,10 @@ export default function PortfolioScreen() {
         })
       );
 
-      setHoldings(buildHoldings(alerts, quoteMap));
+      // Alert map (best-effort — alertsApi optional here since holdings are primary)
+      const alertMap = new Map<string, { has_active: boolean; triggered: boolean; triggered_at?: string }>();
+
+      setHoldings(buildHoldings(records, quoteMap, alertMap));
     } catch {
       setError("Failed to load portfolio. Pull to refresh.");
     }
@@ -263,10 +233,9 @@ export default function PortfolioScreen() {
   useEffect(() => { initialLoad(); }, []);
 
   const totalValue = holdings.reduce((s, h) => s + h.total_value, 0);
-  const totalProfit = holdings.reduce((s, h) => s + h.profit, 0);
-  const totalProfitPct = holdings.length > 0
-    ? (totalProfit / holdings.reduce((s, h) => s + h.total_cost, 0)) * 100
-    : 0;
+  const totalCost  = holdings.reduce((s, h) => s + h.total_cost, 0);
+  const totalProfit = totalValue - totalCost;
+  const totalProfitPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
 
   if (loading) {
     return (
@@ -280,13 +249,13 @@ export default function PortfolioScreen() {
     <View style={styles.container}>
       <FlatList
         data={holdings}
-        keyExtractor={(h) => h.ticker}
+        keyExtractor={(h) => String(h.id)}
         renderItem={({ item }) => (
           <StockCard
             holding={item}
             onSell={() => setSellTarget(item)}
             onBuyMore={() => setBuyTarget(item)}
-            onHold={() => {/* log hold decision */}}
+            onHold={() => {}}
             onRefresh={handleRefresh}
           />
         )}
@@ -294,9 +263,15 @@ export default function PortfolioScreen() {
           holdings.length > 0 ? (
             <View style={styles.summary}>
               <Text style={styles.summaryLabel}>Total Portfolio</Text>
-              <Text style={styles.summaryValue}>${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+              <Text style={styles.summaryValue}>
+                {holdings[0]?.currency === "INR" ? "₹" : "$"}
+                {totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              </Text>
               <Text style={[styles.summaryProfit, { color: totalProfit >= 0 ? colors.green : colors.red }]}>
-                {totalProfit >= 0 ? "+" : ""}${totalProfit.toFixed(2)} ({totalProfitPct >= 0 ? "+" : ""}{totalProfitPct.toFixed(2)}%)
+                {totalProfit >= 0 ? "+" : ""}
+                {holdings[0]?.currency === "INR" ? "₹" : "$"}
+                {Math.abs(totalProfit).toFixed(2)}{" "}
+                ({totalProfitPct >= 0 ? "+" : ""}{totalProfitPct.toFixed(2)}%)
               </Text>
             </View>
           ) : null
@@ -315,7 +290,7 @@ export default function PortfolioScreen() {
               <Text style={styles.emptyIcon}>📈</Text>
               <Text style={styles.emptyTitle}>No stocks yet</Text>
               <Text style={styles.emptyText}>
-                Tap Add Stock to start tracking your portfolio with ladder alerts.
+                Tap Add Stock to start tracking your portfolio with profit alerts.
               </Text>
             </View>
           )

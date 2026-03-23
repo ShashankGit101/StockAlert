@@ -18,6 +18,7 @@ import app.models.alert_state  # noqa: F401
 import app.models.alert_history  # noqa: F401
 import app.models.price_snapshot  # noqa: F401
 import app.models.trade_history  # noqa: F401
+import app.models.holding  # noqa: F401
 
 config = context.config
 
@@ -58,7 +59,7 @@ async def run_async_migrations() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
-        connect_args={"ssl": ssl_ctx},
+        connect_args={"ssl": ssl_ctx, "statement_cache_size": 0},
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
