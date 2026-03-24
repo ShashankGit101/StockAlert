@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { LineChart } from "react-native-chart-kit";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { stocksApi, type Stock, type PricePoint } from "@/api/stocks";
 import BuySheet from "@/components/BuySheet";
@@ -20,40 +21,37 @@ import { colors, mono, spacing } from "@/theme";
 const LADDER_STEP_PP = 2;
 const { width } = Dimensions.get("window");
 
-// ── Simple line chart ─────────────────────────────────────────────────────────
+// ── Line chart ─────────────────────────────────────────────────────────────────
 
-function SimpleLineChart({ data, color }: { data: PricePoint[]; color: string }) {
-  if (data.length < 2) return null;
+function PriceLineChart({ data, color }: { data: PricePoint[]; color: string }) {
+  if (data.length < 2) return <View style={{ height: 120 }} />;
   const prices = data.map((d) => d.close);
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const range = max - min || 1;
-  const W = width - spacing.md * 2 - spacing.md * 2;
-  const H = 120;
-  const pts = prices.map((p, i) => {
-    const x = (i / (prices.length - 1)) * W;
-    const y = H - ((p - min) / range) * H;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  // SVG-like drawing using View — approximate with bars
+  // chart-kit needs at least 2 labels; supply empty strings to hide them
+  const labels = prices.map(() => "");
+  const chartWidth = width - spacing.md * 4;
   return (
-    <View style={{ height: H, flexDirection: "row", alignItems: "flex-end", gap: 1 }}>
-      {prices.map((p, i) => {
-        const pct = ((p - min) / range);
-        return (
-          <View
-            key={i}
-            style={{
-              flex: 1,
-              height: Math.max(4, pct * H),
-              backgroundColor: color + "88",
-              borderTopLeftRadius: 2,
-              borderTopRightRadius: 2,
-            }}
-          />
-        );
-      })}
-    </View>
+    <LineChart
+      data={{ labels, datasets: [{ data: prices, color: () => color, strokeWidth: 2 }] }}
+      width={chartWidth}
+      height={120}
+      chartConfig={{
+        backgroundColor: "transparent",
+        backgroundGradientFrom: colors.card,
+        backgroundGradientTo: colors.card,
+        decimalPlaces: 2,
+        color: () => color,
+        strokeWidth: 2,
+        propsForDots: { r: "0" },
+        propsForBackgroundLines: { stroke: "transparent" },
+      }}
+      bezier
+      withDots={false}
+      withInnerLines={false}
+      withOuterLines={false}
+      withHorizontalLabels={false}
+      withVerticalLabels={false}
+      style={{ marginLeft: -spacing.lg }}
+    />
   );
 }
 
@@ -193,7 +191,7 @@ export default function StockDetailScreen() {
 
       {/* Chart */}
       <View style={styles.chartCard}>
-        <SimpleLineChart data={history} color={chartColor} />
+        <PriceLineChart data={history} color={chartColor} />
         <Text style={styles.chartLabel}>Last 30 days</Text>
       </View>
 
