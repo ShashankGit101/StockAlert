@@ -59,9 +59,17 @@ export default function RootLayout() {
         <Stack.Screen
           name="stock/[ticker]"
           options={({ route }: any) => ({
-            title: route.params?.ticker ?? "Stock Detail",
+            title: "Stock Detail",
             headerBackTitle: "Portfolio",
           })}
+        />
+        <Stack.Screen
+          name="edit-profile"
+          options={{ title: "Edit Profile", headerBackTitle: "Settings" }}
+        />
+        <Stack.Screen
+          name="change-password"
+          options={{ title: "Change Password", headerBackTitle: "Settings" }}
         />
       </Stack>
     </>

@@ -1,226 +1,254 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import Constants from "expo-constants";
+import { userApi, type UserProfile } from "@/api/user";
 import { useAuthStore } from "@/store/authStore";
-import { useSettingsStore } from "@/store/settingsStore";
-import { authApi } from "@/api/auth";
 import { colors, spacing } from "@/theme";
 
-function SectionHeader({ title }: { title: string }) {
-  return <Text style={styles.sectionHeader}>{title}</Text>;
-}
-
-function SettingRow({
-  label,
-  sublabel,
-  value,
-  onChange,
-  locked,
-}: {
-  label: string;
-  sublabel?: string;
-  value: boolean;
-  onChange?: (v: boolean) => void;
-  locked?: boolean;
-}) {
-  return (
-    <View style={styles.row}>
-      <View style={styles.rowLeft}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        {sublabel && <Text style={styles.rowSub}>{sublabel}</Text>}
-      </View>
-      {locked ? (
-        <View style={styles.lockedBadge}>
-          <Text style={styles.lockedText}>Always on</Text>
-        </View>
-      ) : (
-        <Switch
-          value={value}
-          onValueChange={onChange}
-          trackColor={{ false: colors.border, true: colors.primary }}
-          thumbColor={colors.white}
-        />
-      )}
-    </View>
-  );
-}
+const ALWAYS_ON_ALERTS = [
+  { color: colors.green, label: "Threshold reached", sub: "Always on" },
+  { color: colors.green, label: "Profit ladder up · every +2pp", sub: "Always on" },
+  { color: colors.amber, label: "Profit ladder down · every -2pp", sub: "Always on" },
+  { color: colors.red, label: "Loss alerts · below avg cost", sub: "Always on" },
+  { color: colors.blue, label: "Recovery alerts · climbing back", sub: "Always on" },
+  { color: colors.grey, label: "Breakeven · back to avg cost", sub: "Always on" },
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, setUser, clearToken } = useAuthStore();
-  const { pushEnabled, emailEnabled, hydrated, load, setPush, setEmail } = useSettingsStore();
+  const { clearToken } = useAuthStore();
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updatingPush, setUpdatingPush] = useState(false);
+  const [updatingEmail, setUpdatingEmail] = useState(false);
 
-  useEffect(() => {
-    load();
-    if (!user) {
-      authApi.me().then(setUser).catch(() => {});
-    }
+  const load = useCallback(async () => {
+    try {
+      const u = await userApi.get();
+      setUser(u);
+    } catch {}
   }, []);
 
-  async function handleSignOut() {
-    await clearToken();
-    router.replace("/login");
+  useEffect(() => {
+    setLoading(true);
+    load().finally(() => setLoading(false));
+  }, []);
+
+  async function togglePush(val: boolean) {
+    if (!user) return;
+    setUpdatingPush(true);
+    try {
+      const updated = await userApi.updateNotifications({ push_enabled: val });
+      setUser(updated);
+    } catch {}
+    setUpdatingPush(false);
   }
 
-  const avatarLetter = user?.email?.[0]?.toUpperCase() ?? "?";
-  const version = Constants.expoConfig?.version ?? "1.0.0";
+  async function toggleEmail(val: boolean) {
+    if (!user) return;
+    setUpdatingEmail(true);
+    try {
+      const updated = await userApi.updateNotifications({ email_enabled: val });
+      setUser(updated);
+    } catch {}
+    setUpdatingEmail(false);
+  }
 
-  if (!hydrated) {
+  const initials = user?.name
+    ? user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+    : user?.email?.slice(0, 2).toUpperCase() ?? "??";
+
+  if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Profile card */}
+    <ScrollView style={styles.container} contentContainerStyle={styles.scroll}>
+      {/* Profile banner */}
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarLetter}>{avatarLetter}</Text>
+          <Text style={styles.avatarText}>{initials}</Text>
         </View>
         <View>
-          <Text style={styles.email}>{user?.email ?? ""}</Text>
-          {user?.expo_push_token && (
-            <View style={styles.pushBadge}>
-              <Text style={styles.pushBadgeText}>Push enabled</Text>
+          <Text style={styles.profileName}>{user?.name ?? "—"}</Text>
+          <Text style={styles.profileEmail}>{user?.email ?? "—"}</Text>
+        </View>
+      </View>
+
+      {/* Notification channels */}
+      <Text style={styles.sectionLabel}>Notification channels</Text>
+      <View style={styles.card}>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleLeft}>
+            <Text style={styles.toggleLabel}>Email alerts</Text>
+            <Text style={styles.toggleSub}>Default off · opt in to receive emails</Text>
+          </View>
+          <Switch
+            value={user?.email_enabled ?? false}
+            onValueChange={toggleEmail}
+            disabled={updatingEmail}
+            trackColor={{ true: colors.green }}
+            thumbColor={colors.white}
+          />
+        </View>
+        <View style={[styles.toggleRow, styles.noBorder]}>
+          <View style={styles.toggleLeft}>
+            <Text style={styles.toggleLabel}>Push notifications</Text>
+            <Text style={styles.toggleSub}>Default on · recommended</Text>
+          </View>
+          <Switch
+            value={user?.push_enabled ?? true}
+            onValueChange={togglePush}
+            disabled={updatingPush}
+            trackColor={{ true: colors.green }}
+            thumbColor={colors.white}
+          />
+        </View>
+      </View>
+
+      {/* Always alerted for */}
+      <Text style={styles.sectionLabel}>Always alerted for</Text>
+      <View style={styles.card}>
+        {ALWAYS_ON_ALERTS.map(({ color, label, sub }, i) => (
+          <View key={i} style={[styles.alwaysRow, i === ALWAYS_ON_ALERTS.length - 1 && styles.noBorder]}>
+            <View style={[styles.dot, { backgroundColor: color }]} />
+            <View style={styles.alwaysLabel}>
+              <Text style={styles.toggleLabel}>{label}</Text>
             </View>
-          )}
-        </View>
+            <Text style={styles.alwaysOn}>{sub}</Text>
+          </View>
+        ))}
       </View>
 
-      {/* Notifications */}
-      <SectionHeader title="Notifications" />
-      <View style={styles.section}>
-        <SettingRow
-          label="Push notifications"
-          sublabel="Get alerts on your device"
-          value={pushEnabled}
-          onChange={setPush}
-        />
-        <View style={styles.divider} />
-        <SettingRow
-          label="Email notifications"
-          sublabel="Get alerts via email"
-          value={emailEnabled}
-          onChange={setEmail}
-        />
+      {/* Alert behaviour */}
+      <Text style={styles.sectionLabel}>Alert behaviour</Text>
+      <View style={styles.card}>
+        <BehaviourRow label="Alert time" value="US: 4:30 PM EST · NSE: 4:00 PM IST" />
+        <BehaviourRow label="Ladder step" value="2pp" />
+        <BehaviourRow label="Confirmation" value="2 days" last />
       </View>
 
-      <SectionHeader title="Alert Triggers" />
-      <View style={styles.section}>
-        <SettingRow label="Ladder step hit" sublabel="2pp move confirmed over 2 days" value={true} locked />
-        <View style={styles.divider} />
-        <SettingRow label="Profit zone entry" sublabel="Price enters profit ladder" value={true} locked />
-        <View style={styles.divider} />
-        <SettingRow label="Loss zone entry" sublabel="Price drops below avg cost" value={true} locked />
-        <View style={styles.divider} />
-        <SettingRow label="Recovery to breakeven" sublabel="Price returns to avg cost" value={true} locked />
+      {/* Account */}
+      <Text style={styles.sectionLabel}>Account</Text>
+      <View style={styles.card}>
+        <TouchableOpacity style={styles.accountRow} onPress={() => router.push("/edit-profile")}>
+          <Text style={styles.accountRowText}>Edit profile</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.accountRow, styles.noBorder]} onPress={() => router.push("/change-password")}>
+          <Text style={styles.accountRowText}>Change password</Text>
+          <Text style={styles.chevron}>›</Text>
+        </TouchableOpacity>
       </View>
 
-      <SectionHeader title="Markets" />
-      <View style={styles.section}>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>US Markets</Text>
-          <Text style={styles.rowValue}>NYSE · NASDAQ · USD</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>India Markets</Text>
-          <Text style={styles.rowValue}>NSE · INR</Text>
-        </View>
-      </View>
-
-      <SectionHeader title="Ladder Settings" />
-      <View style={styles.section}>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Step size</Text>
-          <Text style={styles.rowValue}>2 percentage points</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Confirmation days</Text>
-          <Text style={styles.rowValue}>2 closing days</Text>
-        </View>
-      </View>
-
-      <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.8}>
-        <Text style={styles.signOutText}>Sign Out</Text>
+      {/* Sign out */}
+      <TouchableOpacity style={styles.signOutBtn} onPress={() => clearToken()}>
+        <Text style={styles.signOutText}>Sign out</Text>
       </TouchableOpacity>
-
-      <Text style={styles.version}>StockAlert v{version}</Text>
     </ScrollView>
+  );
+}
+
+function BehaviourRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={[styles.toggleRow, last && styles.noBorder]}>
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <Text style={styles.behaviourValue}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingBottom: spacing.xl * 2 },
   centered: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
+  scroll: { padding: spacing.md, paddingBottom: spacing.xl },
   profileCard: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: colors.card,
-    margin: spacing.md,
     borderRadius: 16,
     padding: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarLetter: { color: colors.white, fontSize: 24, fontWeight: "700" },
-  email: { color: colors.text, fontSize: 15, fontWeight: "600" },
-  pushBadge: { backgroundColor: colors.green + "22", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, marginTop: 4, alignSelf: "flex-start" },
-  pushBadgeText: { color: colors.green, fontSize: 11, fontWeight: "700" },
-  sectionHeader: {
+  avatarText: { color: colors.white, fontSize: 18, fontWeight: "800" },
+  profileName: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  profileEmail: { color: colors.muted, fontSize: 13, marginTop: 2 },
+  sectionLabel: {
     color: colors.muted,
     fontSize: 11,
     fontWeight: "700",
     textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
-  section: { backgroundColor: colors.card, marginHorizontal: spacing.md, borderRadius: 12 },
-  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: spacing.md },
-  row: {
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    marginBottom: spacing.md,
+    overflow: "hidden",
+  },
+  toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  rowLeft: { flex: 1, paddingRight: spacing.sm },
-  rowLabel: { color: colors.text, fontSize: 15 },
-  rowSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  rowValue: { color: colors.muted, fontSize: 13 },
-  lockedBadge: { backgroundColor: colors.border, borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 },
-  lockedText: { color: colors.muted, fontSize: 11, fontWeight: "600" },
+  noBorder: { borderBottomWidth: 0 },
+  toggleLeft: { flex: 1, marginRight: spacing.md },
+  toggleLabel: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  toggleSub: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  dot: { width: 10, height: 10, borderRadius: 5, marginRight: spacing.sm },
+  alwaysRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  alwaysLabel: { flex: 1 },
+  alwaysOn: { color: colors.muted, fontSize: 12 },
+  behaviourValue: { color: colors.muted, fontSize: 13 },
+  accountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  accountRowText: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  chevron: { color: colors.muted, fontSize: 18 },
   signOutBtn: {
-    backgroundColor: colors.red,
+    borderWidth: 1.5,
+    borderColor: colors.red,
     borderRadius: 12,
     padding: 14,
     alignItems: "center",
-    marginHorizontal: spacing.md,
-    marginTop: spacing.lg,
+    marginTop: spacing.sm,
   },
-  signOutText: { color: colors.white, fontWeight: "700", fontSize: 16 },
-  version: { color: colors.muted, fontSize: 12, textAlign: "center", marginTop: spacing.lg },
+  signOutText: { color: colors.red, fontWeight: "700", fontSize: 15 },
 });
