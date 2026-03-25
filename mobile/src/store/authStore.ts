@@ -18,15 +18,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   hydrated: false,
 
   setToken: async (token) => {
-    await AsyncStorage.setItem("access_token", token);
     set({ token });
+    await AsyncStorage.setItem("access_token", token);
+    
   },
 
   setUser: (user) => set({ user }),
 
   clearToken: async () => {
-    await AsyncStorage.removeItem("access_token");
+    // Clear in-memory state immediately so the auth guard redirects at once,
+    // then remove from AsyncStorage in the background.
     set({ token: null, user: null });
+    await AsyncStorage.removeItem("access_token");
   },
 
   loadToken: async () => {
