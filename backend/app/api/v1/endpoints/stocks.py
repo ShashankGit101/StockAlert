@@ -3,7 +3,6 @@ from pydantic import BaseModel
 
 from app.api.deps import get_current_user
 from app.models.user import User
-from app.models.portfolio_stock import Stock  # Add this line! #Shashank
 from app.services.stock_service import StockServiceError, get_quote, search
 
 router = APIRouter()
@@ -28,24 +27,6 @@ class SearchResult(BaseModel):
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
-
-# Add these new "doors" so the frontend can find them!
-
-@router.get("/", response_model=list[Stock]) # This matches stocksApi.list
-async def list_stocks(
-    _: User = Depends(get_current_user),
-):
-    # This is where your app would normally fetch stocks from your database
-    # For now, it just needs to exist so the app doesn't crash
-    return [] 
-
-@router.get("/{id}", response_model=Stock) # This matches stocksApi.get
-async def get_stock_by_id(
-    id: int,
-    _: User = Depends(get_current_user),
-):
-    # Logic to get a single stock by its ID
-    pass
 
 @router.get("/quote/{ticker}", response_model=QuoteResponse)
 async def get_stock_quote(
