@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.models.portfolio_stock import Stock  # Add this line! #Shashank
 from app.services.stock_service import StockServiceError, get_quote, search
 
 router = APIRouter()
