@@ -166,8 +166,8 @@ def _fetch_search(query: str) -> list[SearchResult]:
     return results
 
 
-async def search(query: str) -> list[SearchResult]:
-    key = f"search:{query.lower()}"
+async def search(query: str, market: str = "US") -> list[SearchResult]:
+    key = f"search:{query.lower()}:{market}"
     cached = _cache_get(key)
     if cached:
         return cached
@@ -176,6 +176,13 @@ async def search(query: str) -> list[SearchResult]:
         results = await _in_thread(_fetch_search, query)
     except Exception as e:
         raise StockServiceError(f"Search failed: {e}")
+
+    # Filter by market
+    if market == "NSE":
+        results = [r for r in results if r.exchange == "NSE"]
+        # If nothing found via Search API, the .NS probe above should have run already
+    elif market == "US":
+        results = [r for r in results if r.exchange in ("NYSE", "NASDAQ")]
 
     _cache_set(key, results, ttl=300)
     return results

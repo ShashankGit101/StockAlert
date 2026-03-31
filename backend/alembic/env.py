@@ -13,9 +13,12 @@ import app.models.alert  # noqa: F401
 import app.models.stock  # noqa: F401
 import app.models.alert_state  # noqa: F401
 import app.models.alert_history  # noqa: F401
-import app.models.price_snapshot  # noqa: F401
-import app.models.trade_history  # noqa: F401
 import app.models.holding  # noqa: F401
+import app.models.portfolio_alert_state  # noqa: F401
+import app.models.portfolio_alert_history  # noqa: F401
+import app.models.price_snapshot  # noqa: F401
+import app.models.buy_history  # noqa: F401
+import app.models.sell_history  # noqa: F401
 
 config = context.config
 
