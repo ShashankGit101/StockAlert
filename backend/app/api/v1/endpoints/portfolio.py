@@ -230,6 +230,7 @@ async def delete_stock(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    print(f"DEBUG: User {current_user.id} trying to delete stock {stock_id}") // Shashank
     result = await db.execute(
         select(Holding).where(Holding.id == stock_id, Holding.user_id == current_user.id)
     )
