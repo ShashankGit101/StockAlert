@@ -63,8 +63,8 @@ export const stocksApi = {
    // apiClient.post<Stock>("/portfolio/", payload).then((r) => r.data),
 
   //delete: (id: number) => apiClient.delete(`/stocks/${id}`), //Shashank
-  delete: (id: number) => 
-    apiClient.delete(`/stocks/${id}/`).then((r) => r.data),
+  //delete: (id: number) => apiClient.delete(`/portfolio/${id}`).then((r) => r.data),
+    delete: (id: number) => apiClient.delete(`/portfolio/${id}`).then((r) => r.data),
 
   buy: (id: number, payload: BuyPayload) =>
     apiClient.post(`/stocks/${id}/buy`, payload).then((r) => r.data),

@@ -211,7 +211,12 @@ async def get_stock(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Holding).where(Holding.id == stock_id, Holding.user_id == current_user.id)
+        select(Holding).where
+                            (
+                                Holding.id == stock_id, Holding.user_id == current_user.id
+                                Holding.status != "deleted" // Shashank
+                            )
+        
     )
     holding = result.scalar_one_or_none()
     if holding is None:
