@@ -1,3 +1,6 @@
+
+import { Alert } from "react-native";
+import { useIsFocused } from "@react-navigation/native"; // Shashank
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -23,6 +26,7 @@ import { colors, mono, spacing } from "@/theme";
 // ── Portfolio screen ──────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
+  const isFocused = useIsFocused(); // Shashank
   const router = useRouter();
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [alerts, setAlerts] = useState<AlertHistory[]>([]);
@@ -30,6 +34,13 @@ export default function PortfolioScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [buyTarget, setBuyTarget] = useState<Stock | null>(null);
   const [sellTarget, setSellTarget] = useState<Stock | null>(null);
+
+  useEffect(() => { // Shashank
+    // Logic: Only call the API when the user actually navigates TO this screen
+    if (isFocused) {
+      load(); 
+    }
+  }, [isFocused]); // This dependency is the key
 
   const load = useCallback(async () => {
     try {
@@ -110,6 +121,7 @@ export default function PortfolioScreen() {
             isActionable={actionableMap.has(item.id)}
             onBuy={() => setBuyTarget(item)}
             onSell={() => setSellTarget(item)}
+            onRefresh={load} // <--- ADD THIS LINE Shashank
             onHold={async () => {
               const alert = actionableMap.get(item.id);
               if (alert) {
@@ -201,6 +213,8 @@ export default function PortfolioScreen() {
     </View>
   );
 }
+
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },

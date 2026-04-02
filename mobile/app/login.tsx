@@ -36,7 +36,7 @@ export default function LoginScreen() {
     try {
       const { access_token } = await authApi.login(email.trim(), password);
       await setToken(access_token);
-      router.replace("/(tabs)");
+      router.replace("/(tabs)"); 
     } catch (err: any) {
       const message =
         err?.response?.data?.detail ?? "Login failed. Please check your credentials.";

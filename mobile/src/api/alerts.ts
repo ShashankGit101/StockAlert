@@ -1,29 +1,36 @@
 import { apiClient } from "./client";
 
-export type AlertDirection = "above" | "below";
-export type AlertStatus = "active" | "triggered" | "cancelled";
+export type AlertType =
+  | "threshold"
+  | "profit_up"
+  | "profit_down"
+  | "loss"
+  | "recovery"
+  | "breakeven";
 
-export interface Alert {
+export type UserAction = "hold" | "buy_more" | "sell_full" | "sell_partial";
+
+export interface AlertHistory {
   id: number;
+  stock_id: number;
   ticker: string;
-  target_price: number;
-  direction: AlertDirection;
-  status: AlertStatus;
-  created_at?: string;
-  triggered_at?: string;
-}
-
-export interface CreateAlertPayload {
-  ticker: string;
-  direction: AlertDirection;
-  target_price: number;
+  company_name: string;
+  alert_type: AlertType;
+  rung_pct: number | null;
+  closing_price: number | null;
+  profit_pct: number | null;
+  user_action: UserAction | null;
+  action_taken_at: string | null;
+  is_actionable: boolean;
+  triggered_at: string;
 }
 
 export const alertsApi = {
-  list: () => apiClient.get<Alert[]>("/alerts/").then((r) => r.data),
+  list: () => apiClient.get<AlertHistory[]>("/alerts").then((r) => r.data),
 
-  create: (payload: CreateAlertPayload) =>
-    apiClient.post<Alert>("/alerts/", payload).then((r) => r.data),
+  get: (id: number) =>
+    apiClient.get<AlertHistory>(`/alerts/${id}`).then((r) => r.data),
 
-  delete: (id: number) => apiClient.delete(`/alerts/${id}`),
+  action: (id: number, action: UserAction) =>
+    apiClient.put(`/alerts/${id}/action`, { action }).then((r) => r.data),
 };

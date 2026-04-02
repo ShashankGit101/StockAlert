@@ -31,9 +31,29 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token: null, user: null });
     await AsyncStorage.removeItem("access_token");
   },
-
+/*
   loadToken: async () => {
-    const token = await AsyncStorage.getItem("access_token");
-    set({ token, hydrated: true });
-  },
+    const stored = await AsyncStorage.getItem("access_token");
+    // If setToken() already put a token in memory while we were reading
+    // AsyncStorage (race between cold-start loadToken and a concurrent
+    // setToken call), keep the in-memory token rather than overwriting it
+    // with a potentially stale storage value.
+    set((state) => ({
+      token: state.token !== null ? state.token : stored,
+      hydrated: true,
+    }));
+  },*/
+  loadToken: async () => {
+    // 1. Check if we are already hydrated (prevents double-loading)
+    const { hydrated, token } = useAuthStore.getState();
+    if (hydrated) return;
+
+    const stored = await AsyncStorage.getItem("access_token");
+    
+    // 2. Only update if the current memory token is empty
+    set({
+      token: token !== null ? token : stored,
+      hydrated: true,
+    });
+  }, 
 }));

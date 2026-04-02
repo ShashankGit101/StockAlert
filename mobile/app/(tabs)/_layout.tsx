@@ -4,7 +4,7 @@ import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
-import { authApi } from "@/api/auth";
+import { userApi } from "@/api/user";
 import { colors } from "@/theme";
 
 Notifications.setNotificationHandler({
@@ -54,7 +54,7 @@ export default function TabLayout() {
     registerForPushNotificationsAsync()
       .then(async (pushToken) => {
         if (pushToken) {
-          try { await authApi.updatePushToken(pushToken); } catch {}
+          try { await userApi.updateNotifications({ expo_push_token: pushToken }); } catch {}
         }
       })
       .catch(() => {});
@@ -130,7 +130,7 @@ export default function TabLayout() {
         options={{
           title: "Settings",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" color={color} size={size} />
+            <Ionicons name="person-outline" color={color} size={size} />
           ),
         }}
       />
