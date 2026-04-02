@@ -213,7 +213,7 @@ async def get_stock(
     result = await db.execute(
         select(Holding).where
                             (
-                                Holding.id == stock_id, Holding.user_id == current_user.id
+                                Holding.id == stock_id, Holding.user_id == current_user.id,
                                 Holding.status != "deleted" // Shashank
                             )
         
