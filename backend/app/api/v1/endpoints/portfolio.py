@@ -223,7 +223,7 @@ async def get_stock(
         raise HTTPException(status_code=404, detail="Stock not found")
     return await _enrich_holding(holding)
 
-
+/*
 @router.delete("/{stock_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_stock(
     stock_id: int,
@@ -239,6 +239,33 @@ async def delete_stock(
         raise HTTPException(status_code=404, detail="Stock not found")
     holding.status = "deleted"
     await db.commit()
+*/
+
+@router.delete("/{stock_id}")
+async def delete_stock(
+    stock_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    # This will show up in Railway logs even if the query fails
+    print(f"DEBUG: DELETE reached for ID {stock_id} by User {current_user.id}")
+    
+    # Let's see what is actually in the DB for this user
+    all_holdings = await db.execute(select(Holding).where(Holding.user_id == current_user.id))
+    print(f"DEBUG: User holdings IDs: {[h.id for h in all_holdings.scalars().all()]}")
+
+    result = await db.execute(
+        select(Holding).where(Holding.id == stock_id, Holding.user_id == current_user.id)
+    )
+    holding = result.scalar_one_or_none()
+    
+    if holding is None:
+        print(f"DEBUG: Holding {stock_id} NOT FOUND for user {current_user.id}")
+        raise HTTPException(status_code=404, detail="Stock not found")
+        
+    holding.status = "deleted"
+    await db.commit()
+    return {"status": "success"}
 
 
 @router.post("/{stock_id}/buy")
