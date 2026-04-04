@@ -223,23 +223,23 @@ async def get_stock(
         raise HTTPException(status_code=404, detail="Stock not found")
     return await _enrich_holding(holding)
 
-/*
-@router.delete("/{stock_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_stock(
-    stock_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    print(f"DEBUG: User {current_user.id} trying to delete stock {stock_id}") // Shashank
-    result = await db.execute(
-        select(Holding).where(Holding.id == stock_id, Holding.user_id == current_user.id)
-    )
-    holding = result.scalar_one_or_none()
-    if holding is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
-    holding.status = "deleted"
-    await db.commit()
-*/
+
+#@router.delete("/{stock_id}", status_code=status.HTTP_204_NO_CONTENT)
+#async def delete_stock(
+#    stock_id: int,
+#    current_user: User = Depends(get_current_user),
+#    db: AsyncSession = Depends(get_db),
+#):
+#    print(f"DEBUG: User {current_user.id} trying to delete stock {stock_id}") // Shashank
+#    result = await db.execute(
+#        select(Holding).where(Holding.id == stock_id, Holding.user_id == current_user.id)
+#    )
+#    holding = result.scalar_one_or_none()
+#    if holding is None:
+#        raise HTTPException(status_code=404, detail="Stock not found")
+#    holding.status = "deleted"
+#    await db.commit()
+
 
 @router.delete("/{stock_id}")
 async def delete_stock(
