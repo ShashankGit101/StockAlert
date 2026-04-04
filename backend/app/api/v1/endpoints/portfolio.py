@@ -170,7 +170,7 @@ async def _enrich_holding(holding: Holding) -> dict:
         data["profit_pct"] = profit_pct
     #except Exception: shashank
      #   pass #shashank
-     except Exception as e:
+    except Exception as e:
         print(f"Error enriching holding {holding.ticker}: {e}")
     return data
 
