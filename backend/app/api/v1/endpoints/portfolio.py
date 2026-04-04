@@ -214,7 +214,7 @@ async def get_stock(
         select(Holding).where
                             (
                                 Holding.id == stock_id, Holding.user_id == current_user.id,
-                                Holding.status != "deleted" // Shashank
+                                Holding.status != "deleted" # Shashank
                             )
         
     )
