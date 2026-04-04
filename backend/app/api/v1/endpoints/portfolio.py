@@ -150,30 +150,63 @@ async def _enrich_holding(holding: Holding, db: AsyncSession) -> dict:
         "current_rung_pct": 0,
     }
     try:
-        # new code below  -- Shashank
-        # 1. Fetch Alert State from the database
+        # LOG 1: Check if we are looking for the right ID
+        print(f"DEBUG: Enriching {holding.ticker} (ID: {holding.id})")
+
         state_result = await db.execute(
             select(PortfolioAlertState).where(PortfolioAlertState.stock_id == holding.id)
         )
         state = state_result.scalar_one_or_none()
         
         if state:
+            # LOG 2: Data found in DB
+            print(f"DEBUG: Found state for {holding.ticker}: Zone={state.zone}, Rung={state.current_rung_pct}")
             data["zone"] = state.zone
             data["current_rung_pct"] = float(state.current_rung_pct) if state.current_rung_pct is not None else 0.0
-        # new code above -- Shashank
+        else:
+            # LOG 3: No row found in portfolio_alert_state
+            print(f"DEBUG: No alert state row found for {holding.ticker}. Defaulting to 0.0")
+            data["zone"] = "pre_threshold"
+            data["current_rung_pct"] = 0.0
 
-        q = await get_quote(holding.ticker)
-        avg_cost = float(holding.avg_cost)
-        profit_pct = round((q.price - avg_cost) / avg_cost * 100, 4)
-        data["current_price"] = q.price
-        data["daily_change"] = q.change
-        data["daily_change_pct"] = q.change_percent
-        data["profit_pct"] = profit_pct
-    #except Exception: shashank
-     #   pass #shashank
+        # ... (rest of your yfinance quote logic) ...
+        
+        # LOG 4: Final verification of what goes to the App
+        print(f"DEBUG: Final data for App -> Rung: {data['current_rung_pct']}, Zone: {data['zone']}")
+
     except Exception as e:
-        print(f"Error enriching holding {holding.ticker}: {e}")
+        print(f"ERROR in _enrich_holding for {holding.ticker}: {e}")
+    
     return data
+    #try:
+    #    # new code below  -- Shashank
+    #    # 1. Fetch Alert State from the database
+    #    state_result = await db.execute(
+    #        select(PortfolioAlertState).where(PortfolioAlertState.stock_id == holding.id)
+    #    )
+    #    state = state_result.scalar_one_or_none()
+    #    
+    #    if state:
+    #        data["zone"] = state.zone
+    #        data["current_rung_pct"] = float(state.current_rung_pct) if state.current_rung_pct is not None else 0.0
+    #    # new code above -- Shashank
+
+    #    q = await get_quote(holding.ticker)
+    #    avg_cost = float(holding.avg_cost)
+    #    profit_pct = round((q.price - avg_cost) / avg_cost * 100, 4)
+    #    data["current_price"] = q.price
+    #    data["daily_change"] = q.change
+    #    data["daily_change_pct"] = q.change_percent
+    #    data["profit_pct"] = profit_pct
+    ##except Exception: shashank
+    # #   pass #shashank
+    #except Exception as e:
+    #    print(f"Error enriching holding {holding.ticker}: {e}")
+    #return data
+
+
+
+
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
