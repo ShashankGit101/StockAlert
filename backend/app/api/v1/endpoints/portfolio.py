@@ -124,7 +124,8 @@ class PriceSnapshotResponse(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-async def _enrich_holding(holding: Holding) -> dict:
+#async def _enrich_holding(holding: Holding) -> dict:
+async def _enrich_holding(holding: Holding, db: AsyncSession) -> dict:
     """Add live price data to a holding dict."""
     data = {
         "id": holding.id,
