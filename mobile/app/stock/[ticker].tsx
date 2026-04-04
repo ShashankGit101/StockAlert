@@ -60,9 +60,39 @@ function PriceLineChart({ data, color }: { data: PricePoint[]; color: string }) 
 function AlertLadder({ stock }: { stock: Stock }) {
   const profitPct = stock.profit_pct ?? 0;
   const threshold = stock.threshold_pct;
+  const zone = stock.zone ?? "pre_threshold";
   const currentRung = stock.current_rung_pct ?? 0;
 
-  // Build 5 rungs
+  const title = (
+    <Text style={ladderStyles.title}>
+      Alert ladder · threshold {stock.currency === "INR" ? "₹" : "$"}{Number(stock.threshold_profit_price).toFixed(2)} · {threshold.toFixed(0)}%
+    </Text>
+  );
+
+  // Pre-threshold: no rungs alerted yet — show threshold target and current profit
+  if (zone === "pre_threshold") {
+    const progress = threshold > 0 ? Math.max(0, Math.min(1, profitPct / threshold)) : 0;
+    const profitColor = profitPct >= 0 ? colors.green : colors.red;
+    return (
+      <View style={ladderStyles.container}>
+        {title}
+        <View style={ladderStyles.rung}>
+          <Text style={ladderStyles.rungPct}>+{threshold.toFixed(0)}%</Text>
+          <View style={ladderStyles.barTrack}>
+            <View style={[ladderStyles.barFill, { width: `${progress * 100}%`, backgroundColor: profitColor }]} />
+          </View>
+          <Text style={[ladderStyles.rungTag, { color: colors.muted }]}>target</Text>
+        </View>
+        <View style={ladderStyles.rung}>
+          <Text style={[ladderStyles.rungPct, { color: profitColor }]}>{profitPct >= 0 ? "+" : ""}{profitPct.toFixed(1)}%</Text>
+          <View style={ladderStyles.barTrack} />
+          <Text style={[ladderStyles.rungTag, { color: profitColor }]}>now</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Active zone: show 5-rung ladder
   const rungs = [
     { label: "Next up", pct: currentRung + LADDER_STEP_PP, tag: "", fill: 0 },
     { label: "current", pct: currentRung, tag: "current", fill: profitPct >= currentRung ? 1 : profitPct / Math.max(currentRung, 0.01) },
@@ -81,9 +111,7 @@ function AlertLadder({ stock }: { stock: Stock }) {
 
   return (
     <View style={ladderStyles.container}>
-      <Text style={ladderStyles.title}>
-        Alert ladder · threshold {stock.currency === "INR" ? "₹" : "$"}{Number(stock.threshold_profit_price).toFixed(2)} · {threshold.toFixed(0)}%
-      </Text>
+      {title}
       {rungs.map((r, i) => (
         <View key={i} style={ladderStyles.rung}>
           <Text style={ladderStyles.rungPct}>{r.pct >= 0 ? "+" : ""}{r.pct.toFixed(0)}%</Text>

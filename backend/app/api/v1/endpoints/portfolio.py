@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.models.buy_history import BuyHistory
 from app.models.holding import Holding
 from app.models.portfolio_alert_history import PortfolioAlertHistory
+from app.models.portfolio_alert_state import PortfolioAlertState
 from app.models.price_snapshot import PriceSnapshot
 from app.models.sell_history import SellHistory
 from app.models.user import User
@@ -120,8 +121,13 @@ class PriceSnapshotResponse(BaseModel):
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-async def _enrich_holding(holding: Holding) -> dict:
-    """Add live price data to a holding dict."""
+async def _enrich_holding(holding: Holding, db: AsyncSession) -> dict:
+    """Add live price data and alert state to a holding dict."""
+    alert_state_result = await db.execute(
+        select(PortfolioAlertState).where(PortfolioAlertState.stock_id == holding.id)
+    )
+    alert_state = alert_state_result.scalar_one_or_none()
+
     data = {
         "id": holding.id,
         "ticker": holding.ticker,
@@ -140,13 +146,11 @@ async def _enrich_holding(holding: Holding) -> dict:
         "daily_change": None,
         "daily_change_pct": None,
         "profit_pct": None,
-        "zone": "pre_threshold",
-       # "current_rung_pct": None,
-        "current_rung_pct": 0,
+        "zone": alert_state.zone if alert_state else "pre_threshold",
+        "current_rung_pct": float(alert_state.current_rung_pct) if alert_state and alert_state.current_rung_pct is not None else None,
     }
-  
-    try:
 
+    try:
         q = await get_quote(holding.ticker)
         avg_cost = float(holding.avg_cost)
         profit_pct = round((q.price - avg_cost) / avg_cost * 100, 4)
@@ -154,9 +158,9 @@ async def _enrich_holding(holding: Holding) -> dict:
         data["daily_change"] = q.change
         data["daily_change_pct"] = q.change_percent
         data["profit_pct"] = profit_pct
-    except Exception: 
-       pass 
-    
+    except Exception:
+        pass
+
     return data
 
 
@@ -180,8 +184,8 @@ async def list_stocks(
 
     out = []
     for h in holdings:
-       out.append(await _enrich_holding(h)) 
-       
+        out.append(await _enrich_holding(h, db))
+
     return out
 
 
@@ -207,9 +211,19 @@ async def create_stock(
         status="active",
     )
     db.add(holding)
+    await db.flush()  # assigns holding.id without committing
+
+    alert_state = PortfolioAlertState(
+        stock_id=holding.id,
+        zone="pre_threshold",
+        current_rung_pct=None,
+        pending_rung_pct=None,
+        pending_close_count=0,
+    )
+    db.add(alert_state)
     await db.commit()
     await db.refresh(holding)
-    return await _enrich_holding(holding) 
+    return await _enrich_holding(holding, db)
 
 
 @router.get("/{stock_id}", response_model=StockResponse)
@@ -229,8 +243,8 @@ async def get_stock(
     holding = result.scalar_one_or_none()
     if holding is None:
         raise HTTPException(status_code=404, detail="Stock not found")
-    return await _enrich_holding(holding)
-    
+    return await _enrich_holding(holding, db)
+
 
 
 #@router.delete("/{stock_id}", status_code=status.HTTP_204_NO_CONTENT)
