@@ -1,5 +1,8 @@
 """Portfolio stock positions — CRUD + buy/sell actions."""
 
+from app.models.portfolio_alert_state import PortfolioAlertState #shashank 
+
+
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -142,9 +145,22 @@ async def _enrich_holding(holding: Holding) -> dict:
         "daily_change_pct": None,
         "profit_pct": None,
         "zone": "pre_threshold",
-        "current_rung_pct": None,
+       # "current_rung_pct": None,
+        "current_rung_pct": 0,
     }
     try:
+        # new code below  -- Shashank
+        # 1. Fetch Alert State from the database
+        state_result = await db.execute(
+            select(PortfolioAlertState).where(PortfolioAlertState.stock_id == holding.id)
+        )
+        state = state_result.scalar_one_or_none()
+        
+        if state:
+            data["zone"] = state.zone
+            data["current_rung_pct"] = float(state.current_rung_pct) if state.current_rung_pct is not None else 0.0
+        # new code above -- Shashank
+
         q = await get_quote(holding.ticker)
         avg_cost = float(holding.avg_cost)
         profit_pct = round((q.price - avg_cost) / avg_cost * 100, 4)
@@ -152,8 +168,10 @@ async def _enrich_holding(holding: Holding) -> dict:
         data["daily_change"] = q.change
         data["daily_change_pct"] = q.change_percent
         data["profit_pct"] = profit_pct
-    except Exception:
-        pass
+    #except Exception: shashank
+     #   pass #shashank
+     except Exception as e:
+        print(f"Error enriching holding {holding.ticker}: {e}")
     return data
 
 
@@ -173,7 +191,8 @@ async def list_stocks(
 
     out = []
     for h in holdings:
-        out.append(await _enrich_holding(h))
+       # out.append(await _enrich_holding(h)) shashank
+       out.append(await _enrich_holding(h, db))
     return out
 
 
@@ -201,7 +220,8 @@ async def create_stock(
     db.add(holding)
     await db.commit()
     await db.refresh(holding)
-    return await _enrich_holding(holding)
+    # return await _enrich_holding(holding) // Shashank
+    return await _enrich_holding(holding, db) 
 
 
 @router.get("/{stock_id}", response_model=StockResponse)
@@ -221,7 +241,8 @@ async def get_stock(
     holding = result.scalar_one_or_none()
     if holding is None:
         raise HTTPException(status_code=404, detail="Stock not found")
-    return await _enrich_holding(holding)
+    #return await _enrich_holding(holding) #shashank
+    return await _enrich_holding(holding, db)
 
 
 #@router.delete("/{stock_id}", status_code=status.HTTP_204_NO_CONTENT)
