@@ -91,7 +91,8 @@
       "Bash(.venv/Scripts/pip show:*)",
       "Bash(.venv/Scripts/python -c \"import resend; help\\(resend.Emails.send\\)\")",
       "Bash(.venv/Scripts/python -c ':*)",
-      "Bash(.venv/Scripts/python -m pytest -v)"
+      "Bash(.venv/Scripts/python -m pytest -v)",
+      "Bash(npx jest:*)"
     ]
   }
 }

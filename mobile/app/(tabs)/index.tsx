@@ -52,6 +52,8 @@ export default function PortfolioScreen() {
   */
 
   const load = useCallback(async () => {
+    const { token } = useAuthStore.getState(); //Shashank
+    if (!token) return; //Shashank
     try {
       const [s, a] = await Promise.all([
         stocksApi.list().catch(() => [] as Stock[]),
