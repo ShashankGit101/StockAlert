@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useAuthStore } from "@/store/authStore";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -184,6 +185,7 @@ function AlertCard({
 
 export default function AlertsScreen() {
   const router = useRouter();
+  const { token, hydrated } = useAuthStore();
   const [alerts, setAlerts] = useState<AlertHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -223,7 +225,11 @@ export default function AlertsScreen() {
     } catch {}
   }
 
-  useEffect(() => { initialLoad(); }, []);
+  useEffect(() => {
+    if (hydrated && token) {
+      initialLoad();
+    }
+  }, [hydrated, token]);
 
   const today = alerts.filter((a) => {
     const diff = Date.now() - new Date(a.triggered_at).getTime();

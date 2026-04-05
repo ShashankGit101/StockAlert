@@ -24,7 +24,7 @@ const ALWAYS_ON_ALERTS = [
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { clearToken } = useAuthStore();
+  const { clearToken, token, hydrated } = useAuthStore();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingPush, setUpdatingPush] = useState(false);
@@ -38,9 +38,11 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    load().finally(() => setLoading(false));
-  }, []);
+    if (hydrated && token) {
+      setLoading(true);
+      load().finally(() => setLoading(false));
+    }
+  }, [hydrated, token]);
 
   async function togglePush(val: boolean) {
     if (!user) return;

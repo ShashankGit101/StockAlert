@@ -74,7 +74,11 @@ export default function PortfolioScreen() {
     setRefreshing(false);
   }
 
-  useEffect(() => { initialLoad(); }, []);
+  useEffect(() => {
+    if (hydrated && token) {
+      initialLoad();
+    }
+  }, [hydrated, token]);
 
   // Build actionable set: stock_id → true if any alert is_actionable
   const actionableMap = new Map<number, AlertHistory>();
