@@ -1,4 +1,5 @@
 
+import { useAuthStore } from "@/store/authStore"; // Shashank
 import { Alert } from "react-native";
 import { useIsFocused } from "@react-navigation/native"; // Shashank
 import { useCallback, useEffect, useState } from "react";
@@ -34,13 +35,21 @@ export default function PortfolioScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [buyTarget, setBuyTarget] = useState<Stock | null>(null);
   const [sellTarget, setSellTarget] = useState<Stock | null>(null);
-
+  const { token, hydrated } = useAuthStore();
+  
+  useEffect(() => {
+  if (isFocused && hydrated && token) {
+    load();
+  }
+}, [isFocused, hydrated, token]);
+  /*
   useEffect(() => { // Shashank
     // Logic: Only call the API when the user actually navigates TO this screen
     if (isFocused) {
       load(); 
     }
   }, [isFocused]); // This dependency is the key
+  */
 
   const load = useCallback(async () => {
     try {
