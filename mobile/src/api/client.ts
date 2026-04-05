@@ -52,7 +52,7 @@ apiClient.interceptors.response.use(
       if (!isAuthEndpoint) {
         // COMMENT THIS OUT TEMPORARILY to stop the bouncing
         useAuthStore.getState().clearToken(); 
-        console.warn("401 error detected, but auto-logout is disabled for debugging.");
+        //sconsole.warn("401 error detected, but auto-logout is disabled for debugging.");
       }
     }
     return Promise.reject(error);
