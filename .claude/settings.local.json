@@ -82,7 +82,16 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(k\\) for k in sorted\\(d[''''paths''''].keys\\(\\)\\)]\")",
       "Bash(ls /c/Projects/Claude/StockAlert/*.toml)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin.read\\(\\).split\\(''''\\\\nHTTP''''\\)[0].__class__\\(sys.stdin.read\\(\\)\\)\\); print\\(''''ok''''\\)\")",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(xargs grep:*)",
+      "Bash(.venv/Scripts/python -m pytest tests/test_portfolio_alerts.py -v)",
+      "Bash(.venv/Scripts/python --version)",
+      "Bash(.venv/Scripts/python -c \"import zoneinfo; print\\('zoneinfo ok'\\)\")",
+      "Bash(.venv/Scripts/python -c \"import yfinance; import resend; print\\('both ok'\\)\")",
+      "Bash(.venv/Scripts/pip show:*)",
+      "Bash(.venv/Scripts/python -c \"import resend; help\\(resend.Emails.send\\)\")",
+      "Bash(.venv/Scripts/python -c ':*)",
+      "Bash(.venv/Scripts/python -m pytest -v)"
     ]
   }
 }
