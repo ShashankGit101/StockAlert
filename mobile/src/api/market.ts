@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { getAuthenticatedClient } from "./client";
 
 export interface MarketSearchResult {
   ticker: string;
@@ -19,10 +19,10 @@ export interface MarketPrice {
 
 export const marketApi = {
   search: (q: string, market: "US" | "NSE") =>
-    apiClient
+    getAuthenticatedClient()
       .get<MarketSearchResult[]>("/market/search", { params: { q, market } })
       .then((r) => r.data),
 
   price: (ticker: string) =>
-    apiClient.get<MarketPrice>(`/market/price/${ticker}`).then((r) => r.data),
+    getAuthenticatedClient().get<MarketPrice>(`/market/price/${ticker}`).then((r) => r.data),
 };

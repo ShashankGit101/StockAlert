@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { getAuthenticatedClient } from "./client";
 
 export interface UserProfile {
   id: number;
@@ -10,20 +10,20 @@ export interface UserProfile {
 }
 
 export const userApi = {
-  get: () => apiClient.get<UserProfile>("/user").then((r) => r.data),
+  get: () => getAuthenticatedClient().get<UserProfile>("/user").then((r) => r.data),
 
   update: (payload: { name?: string; email?: string }) =>
-    apiClient.put<UserProfile>("/user", payload).then((r) => r.data),
+    getAuthenticatedClient().put<UserProfile>("/user", payload).then((r) => r.data),
 
   updateNotifications: (payload: {
     push_enabled?: boolean;
     email_enabled?: boolean;
     expo_push_token?: string;
   }) =>
-    apiClient
+    getAuthenticatedClient()
       .put<UserProfile>("/user/notifications", payload)
       .then((r) => r.data),
 
   changePassword: (payload: { current_password: string; new_password: string }) =>
-    apiClient.put("/user/password", payload).then((r) => r.data),
+    getAuthenticatedClient().put("/user/password", payload).then((r) => r.data),
 };

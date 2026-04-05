@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { getAuthenticatedClient } from "./client";
 
 export type AlertType =
   | "threshold"
@@ -26,11 +26,11 @@ export interface AlertHistory {
 }
 
 export const alertsApi = {
-  list: () => apiClient.get<AlertHistory[]>("/alerts").then((r) => r.data),
+  list: () => getAuthenticatedClient().get<AlertHistory[]>("/alerts").then((r) => r.data),
 
   get: (id: number) =>
-    apiClient.get<AlertHistory>(`/alerts/${id}`).then((r) => r.data),
+    getAuthenticatedClient().get<AlertHistory>(`/alerts/${id}`).then((r) => r.data),
 
   action: (id: number, action: UserAction) =>
-    apiClient.put(`/alerts/${id}/action`, { action }).then((r) => r.data),
+    getAuthenticatedClient().put(`/alerts/${id}/action`, { action }).then((r) => r.data),
 };

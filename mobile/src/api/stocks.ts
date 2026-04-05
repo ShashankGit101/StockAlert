@@ -1,4 +1,4 @@
-import { apiClient } from "./client";
+import { getAuthenticatedClient } from "./client";
 
 export interface Stock {
   id: number;
@@ -53,27 +53,27 @@ export interface PricePoint {
 }
 
 export const stocksApi = {
-  list: () => apiClient.get<Stock[]>("/stocks/").then((r) => r.data),
+  list: () => getAuthenticatedClient().get<Stock[]>("/stocks/").then((r) => r.data),
 
   get: (id: number) =>
-    apiClient.get<Stock>(`/stocks/${id}`).then((r) => r.data),
+    getAuthenticatedClient().get<Stock>(`/stocks/${id}`).then((r) => r.data),
 
   create: (payload: CreateStockPayload) =>
-    apiClient.post<Stock>("/stocks/", payload).then((r) => r.data),
-   // apiClient.post<Stock>("/portfolio/", payload).then((r) => r.data),
+    getAuthenticatedClient().post<Stock>("/stocks/", payload).then((r) => r.data),
+   // getAuthenticatedClient().post<Stock>("/portfolio/", payload).then((r) => r.data),
 
-  //delete: (id: number) => apiClient.delete(`/stocks/${id}`), //Shashank
-  //delete: (id: number) => apiClient.delete(`/portfolio/${id}`).then((r) => r.data),
-    delete: (id: number) => apiClient.delete(`/stocks/${id}`).then((r) => r.data),
+  //delete: (id: number) => getAuthenticatedClient().delete(`/stocks/${id}`), //Shashank
+  //delete: (id: number) => getAuthenticatedClient().delete(`/portfolio/${id}`).then((r) => r.data),
+    delete: (id: number) => getAuthenticatedClient().delete(`/stocks/${id}`).then((r) => r.data),
 
   buy: (id: number, payload: BuyPayload) =>
-    apiClient.post(`/stocks/${id}/buy`, payload).then((r) => r.data),
+    getAuthenticatedClient().post(`/stocks/${id}/buy`, payload).then((r) => r.data),
 
   sell: (id: number, payload: SellPayload) =>
-    apiClient.post(`/stocks/${id}/sell`, payload).then((r) => r.data),
+    getAuthenticatedClient().post(`/stocks/${id}/sell`, payload).then((r) => r.data),
 
   history: (id: number) =>
-    apiClient
+    getAuthenticatedClient()
       .get<{ ticker: string; history: PricePoint[] }>(`/stocks/${id}/history`)
       .then((r) => r.data),
 
