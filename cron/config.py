@@ -14,6 +14,9 @@ class Config:
     CHECK_INTERVAL_SECONDS: int = int(os.environ.get("CHECK_INTERVAL_SECONDS", "60"))
     # Seconds to wait between Alpha Vantage requests (free tier: 5 req/min)
     AV_REQUEST_DELAY: float = float(os.environ.get("AV_REQUEST_DELAY", "12.5"))
+    # Resend — email notifications (optional; leave blank to disable)
+    RESEND_API_KEY: str = os.environ.get("RESEND_API_KEY", "")
+    RESEND_FROM_EMAIL: str = os.environ.get("RESEND_FROM_EMAIL", "StockAlert <alerts@stockalert.app>")
 
 
 config = Config()
