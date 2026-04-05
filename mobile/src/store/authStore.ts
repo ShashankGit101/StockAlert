@@ -12,6 +12,23 @@ interface AuthState {
   loadToken: () => Promise<void>;
 }
 
+// Decode the JWT payload and check if it has expired.
+// Returns true if the token is expired or unparseable.
+function isTokenExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
+    const payload = JSON.parse(atob(padded));
+    if (!payload.exp) return false;
+    // Give a 10-second buffer for clock skew
+    return Date.now() / 1000 >= payload.exp - 10;
+  } catch {
+    return true;
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   user: null,
@@ -20,7 +37,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   setToken: async (token) => {
     set({ token });
     await AsyncStorage.setItem("access_token", token);
-    
   },
 
   setUser: (user) => set({ user }),
@@ -31,29 +47,22 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token: null, user: null });
     await AsyncStorage.removeItem("access_token");
   },
-/*
+
   loadToken: async () => {
-    const stored = await AsyncStorage.getItem("access_token");
-    // If setToken() already put a token in memory while we were reading
-    // AsyncStorage (race between cold-start loadToken and a concurrent
-    // setToken call), keep the in-memory token rather than overwriting it
-    // with a potentially stale storage value.
-    set((state) => ({
-      token: state.token !== null ? state.token : stored,
-      hydrated: true,
-    }));
-  },*/
-  loadToken: async () => {
-    // 1. Check if we are already hydrated (prevents double-loading)
-    const { hydrated, token } = useAuthStore.getState();
-    if (hydrated) return;
+    // Prevent double-loading
+    if (useAuthStore.getState().hydrated) return;
 
     const stored = await AsyncStorage.getItem("access_token");
-    
-    // 2. Only update if the current memory token is empty
-    set({
-      token: token !== null ? token : stored,
-      hydrated: true,
-    });
-  }, 
+
+    // Reject expired tokens before they ever reach the auth guard.
+    // This prevents the "flash of protected screen → 401 → back to login" loop.
+    const validToken = stored && !isTokenExpired(stored) ? stored : null;
+
+    if (stored && !validToken) {
+      // Clean up the stale token so the next cold start is also clean
+      AsyncStorage.removeItem("access_token");
+    }
+
+    set({ token: validToken, hydrated: true });
+  },
 }));
