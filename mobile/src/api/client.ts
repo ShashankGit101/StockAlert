@@ -9,6 +9,7 @@ export const apiClient = axios.create({ baseURL: BASE_URL });
 // Attach the in-memory JWT on every request — synchronous, no AsyncStorage race.
 apiClient.interceptors.request.use((config) => {
   const { token } = useAuthStore.getState();
+  console.log("Token being sent:", token ? "EXISTS" : "NULL"); // Shashank
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -50,7 +51,7 @@ apiClient.interceptors.response.use(
 
       if (!isAuthEndpoint) {
         // COMMENT THIS OUT TEMPORARILY to stop the bouncing
-        // useAuthStore.getState().clearToken(); 
+        useAuthStore.getState().clearToken(); 
         console.warn("401 error detected, but auto-logout is disabled for debugging.");
       }
     }
