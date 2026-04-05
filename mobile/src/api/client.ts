@@ -44,7 +44,8 @@ export function getAuthenticatedClient() {
         const url: string = error?.config?.url ?? "";
         const isAuthEndpoint = url.includes("login") || url.includes("register");
         if (!isAuthEndpoint) {
-          useAuthStore.getState().clearToken();
+          console.warn("401 error detected, but auto-logout is disabled for debugging.");
+         // useAuthStore.getState().clearToken();
         }
       }
       return Promise.reject(error);
