@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.holding import Holding
+from app.models.portfolio_alert_state import PortfolioAlertState
 from app.models.user import User
 
 router = APIRouter()
@@ -100,6 +101,9 @@ async def create_holding(
         status="active",
     )
     db.add(holding)
+    await db.flush()  # populate holding.id before creating the state row
+
+    db.add(PortfolioAlertState(stock_id=holding.id))
     await db.commit()
     await db.refresh(holding)
     return holding
