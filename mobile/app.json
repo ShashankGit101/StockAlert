@@ -35,6 +35,12 @@
         }
       ]
     ],
-    "scheme": "stockalert"
+    "scheme": "stockalert",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4b41517d-58a6-4a54-8652-67b9b69d0c99"
+      }
+    }
   }
 }
