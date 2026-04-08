@@ -94,7 +94,15 @@
       "Bash(.venv/Scripts/python -m pytest -v)",
       "Bash(npx jest:*)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); pkgs=['react-native-reanimated','react-native-worklets','react-native-screens','expo-notifications']; [print\\(k, d['packages'].get\\('node_modules/'+k, {}\\).get\\('version','NOT FOUND'\\)\\) for k in pkgs]\")",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); expo=d.get\\('packages',{}\\).get\\('node_modules/expo',{}\\); print\\('expo version:', expo.get\\('version'\\)\\); rn=d.get\\('packages',{}\\).get\\('node_modules/react-native',{}\\); print\\('react-native version:', rn.get\\('version'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); p=d.get\\('packages',{}\\); keys=[k for k in p.keys\\(\\) if 'build-properties' in k or 'kotlin' in k.lower\\(\\)]; print\\('\\\\n'.join\\(keys\\)\\)\")",
+      "Bash(npm show:*)",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\([x for x in v if x.startswith\\('0.1'\\)]\\)[-10:]\\)\")",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\(v[-10:]\\)\")",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\([x for x in v if not 'canary' in x][-15:]\\)\")",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\([x for x in v if not 'canary' in x and \\(x.startswith\\('54'\\) or x.startswith\\('1.'\\)\\)]\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('app.json'\\)\\); print\\(json.dumps\\(d['expo']['plugins'], indent=2\\)\\)\")"
     ]
   }
 }
